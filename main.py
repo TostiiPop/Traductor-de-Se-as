@@ -9,14 +9,24 @@ import io
 import base64
 from typing import Optional
 import logging
-
-from models.predictor import GesturePredictor
-from schemas.response_models import PredictionResponse, HealthResponse
-from utils.image_processing import process_uploaded_image
+import sys
+import os
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Verificar que TensorFlow se puede importar
+try:
+    import tensorflow as tf
+    logger.info(f"TensorFlow version: {tf.__version__}")
+    tf_available = True
+except ImportError as e:
+    logger.error(f"TensorFlow not available: {e}")
+    tf_available = False
+
+from schemas.response_models import PredictionResponse, HealthResponse
+from utils.image_processing import process_uploaded_image
 
 # Crear instancia de FastAPI
 app = FastAPI(
@@ -36,26 +46,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Inicializar el predictor
-try:
-    predictor = GesturePredictor()
-    logger.info("Predictor inicializado correctamente")
-except Exception as e:
-    logger.error(f"Error al inicializar el predictor: {e}")
-    predictor = None
+# Inicializar el predictor solo si TensorFlow está disponible
+predictor = None
+if tf_available:
+    try:
+        from models.predictor import GesturePredictor
+        predictor = GesturePredictor()
+        logger.info("Predictor inicializado correctamente")
+    except Exception as e:
+        logger.error(f"Error al inicializar el predictor: {e}")
+        predictor = None
+else:
+    logger.warning("TensorFlow no disponible, predictor deshabilitado")
 
 @app.get("/", response_model=HealthResponse)
 async def root():
     """Endpoint de salud de la API"""
     return HealthResponse(
-        status="healthy",
-        message="API de Traductor de Lenguaje de Señas funcionando correctamente",
+        status="healthy" if tf_available else "limited",
+        message="API de Traductor de Lenguaje de Señas funcionando" + ("" if tf_available else " (sin TensorFlow)"),
         version="1.0.0"
     )
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Verificar el estado de la API y los modelos"""
+    if not tf_available:
+        return HealthResponse(
+            status="unhealthy",
+            message="Error: TensorFlow no disponible",
+            version="1.0.0"
+        )
+    
     if predictor is None:
         return HealthResponse(
             status="unhealthy",
@@ -71,17 +93,31 @@ async def health_check():
         version="1.0.0"
     )
 
+@app.get("/debug")
+async def debug_info():
+    """Información de debug del sistema"""
+    debug_info = {
+        "python_version": sys.version,
+        "tensorflow_available": tf_available,
+        "working_directory": os.getcwd(),
+        "environment_variables": dict(os.environ),
+        "sys_path": sys.path
+    }
+    
+    if tf_available:
+        import tensorflow as tf
+        debug_info["tensorflow_version"] = tf.__version__
+    
+    return debug_info
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_gesture(file: UploadFile = File(...)):
     """
     Predecir gesto a partir de una imagen
-    
-    Args:
-        file: Imagen en formato JPG, PNG, etc.
-    
-    Returns:
-        Predicción del gesto con confianza
     """
+    if not tf_available:
+        raise HTTPException(status_code=503, detail="TensorFlow no disponible")
+    
     if predictor is None:
         raise HTTPException(status_code=500, detail="Predictor no disponible")
     
@@ -114,13 +150,10 @@ async def predict_gesture(file: UploadFile = File(...)):
 async def predict_gesture_base64(image_base64: str):
     """
     Predecir gesto a partir de una imagen en base64
-    
-    Args:
-        image_base64: Imagen codificada en base64
-    
-    Returns:
-        Predicción del gesto con confianza
     """
+    if not tf_available:
+        raise HTTPException(status_code=503, detail="TensorFlow no disponible")
+    
     if predictor is None:
         raise HTTPException(status_code=500, detail="Predictor no disponible")
     
@@ -148,8 +181,8 @@ async def predict_gesture_base64(image_base64: str):
 @app.get("/available_gestures")
 async def get_available_gestures():
     """Obtener lista de gestos disponibles"""
-    if predictor is None:
-        raise HTTPException(status_code=500, detail="Predictor no disponible")
+    if not tf_available or predictor is None:
+        raise HTTPException(status_code=503, detail="Predictor no disponible")
     
     gestures = predictor.get_available_gestures()
     
@@ -162,8 +195,8 @@ async def get_available_gestures():
 @app.get("/model_info")
 async def get_model_info():
     """Obtener información sobre los modelos cargados"""
-    if predictor is None:
-        raise HTTPException(status_code=500, detail="Predictor no disponible")
+    if not tf_available or predictor is None:
+        raise HTTPException(status_code=503, detail="Predictor no disponible")
     
     info = predictor.get_model_info()
     
