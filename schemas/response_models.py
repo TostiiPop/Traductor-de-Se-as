@@ -27,3 +27,23 @@ class ModelInfoResponse(BaseModel):
     """Modelo de respuesta para información del modelo"""
     success: bool
     model_info: Dict
+
+class FaceDistanceResponse(BaseModel):
+    """Modelo de respuesta para detección de distancia facial"""
+    success: bool
+    face_detected: bool
+    z_value: Optional[float]
+    distance_category: str
+    distance_description: str
+    distance_status: str
+    recommendation: str
+    is_optimal: bool
+    processing_time: float
+    error: Optional[str] = None
+
+class DistanceThresholdsResponse(BaseModel):
+    """Modelo de respuesta para umbrales de distancia"""
+    success: bool
+    thresholds: Dict
+    optimal_range: Dict
+    recommendations: Dict
