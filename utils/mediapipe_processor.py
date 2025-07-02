@@ -7,10 +7,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 class MediaPipeProcessor:
-    """Procesador de MediaPipe para extracción de landmarks"""
+    """Procesador de MediaPipe para extracción de landmarks de gestos de manos"""
     
     def __init__(self):
-        """Inicializar MediaPipe"""
+        """Inicializar MediaPipe para detección de gestos"""
         # Inicializar MediaPipe
         self.mp_hands = mp.solutions.hands
         self.mp_face_mesh = mp.solutions.face_mesh
@@ -39,7 +39,7 @@ class MediaPipeProcessor:
     
     def process_image(self, image: np.ndarray) -> Dict:
         """
-        Procesar imagen y extraer landmarks
+        Procesar imagen y extraer landmarks para gestos
         
         Args:
             image: Imagen en formato BGR
@@ -117,7 +117,7 @@ class MediaPipeProcessor:
         return puntos_manos
     
     def _extract_face_landmarks(self, resultados_cara) -> List:
-        """Extraer landmarks faciales de interés"""
+        """Extraer landmarks faciales de interés para gestos"""
         puntos_cara = []
         
         if resultados_cara.multi_face_landmarks:
